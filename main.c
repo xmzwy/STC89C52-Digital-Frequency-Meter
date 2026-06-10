@@ -331,27 +331,19 @@ void main()
             if (mode == 1)
             {
                 uint8 edges = 0;
-                bit   armed = 0;         /* 迟滞: 必须低于阈值才武装 */
-                uint8 lo = (sigThr > 8) ? (sigThr - 8) : 0; /* 迟滞下阈值 */
                 prev = adcBuf[0];
                 for (i = 1; i < 64; i++)
                 {
                     curr = adcBuf[i];
-                    if (prev < lo)        /* 低于下阈值 → 武装 */
-                        armed = 1;
-                    if (armed && prev < sigThr && curr >= sigThr)
-                    {                      /* 武装状态下检测到上升沿 */
+                    if (prev < sigThr && curr >= sigThr)
                         edges++;
-                        armed = 0;         /* 解除武装, 等下次低于lo */
-                    }
                     prev = curr;
                 }
                 zcCount  += edges;
                 zcBufCnt++;
             }
 
-            if (showWave) DrawWaveform();/* 刷新波形 */
-
+            /* 不在此处画波形(耗时50ms影响buffer速率) */
             adcIdx = 0; TR2 = 1;         /* 重启ADC采样 */
         }
 
