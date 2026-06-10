@@ -57,7 +57,8 @@ unsigned char idata sigMax;        /* 缓冲区最大值 → 波形顶部 */
 unsigned char idata sigAvg;        /* 缓冲区平均值 → 过零检测阈值 */
 unsigned char idata sigThr;        /* 过零比较阈值 (=sigAvg) */
 
-unsigned char idata T1RH, T1RL;    /* T1重载值(10ms) */
+unsigned char idata T0RH, T0RL;    /* T0重载值(10ms) */
+unsigned char idata T1RH, T1RL;    /* T1重载值(方波) */
 unsigned char idata strBuf[17];    /* 字符串缓冲区 */
 unsigned char xdata yDisp[128];    /* 128列屏幕Y坐标 */
 
@@ -200,13 +201,13 @@ void ConfigTimer0(void)                  /* T0: 10ms按键扫描 */
     tmp = 11059200UL / 12;
     tmp = (tmp * 10) / 1000;             /* 10ms */
     tmp = 65536 - tmp + 28;
-    T1RH = (unsigned char)(tmp >> 8);    /* 借用T1RH/T1RL存T0重载值 */
-    T1RL = (unsigned char)tmp;
+    T0RH = (unsigned char)(tmp >> 8);    /* T0专用重载值 */
+    T0RL = (unsigned char)tmp;
     TMOD &= 0xF0;
     TMOD |= 0x01;                        /* T0模式1(16位) */
-    TH0 = T1RH; TL0 = T1RL;
+    TH0 = T0RH; TL0 = T0RL;
     ET0 = 1;
-    PT0 = 0;                             /* 低优先级, 不打断T2 ADC采样 */
+    PT0 = 0;
     TR0 = 1;
 }
 
@@ -236,7 +237,7 @@ void ISR_Timer0() interrupt 1            /* T0: 1ms按键扫描 + 系统时钟 *
     static uint8 cnt200ms = 0;
     static uint8 cnt1s    = 0;
 
-    TH0 = T1RH; TL0 = T1RL;             /* 重载T0 (借用T1RH/T1RL) */
+    TH0 = T0RH; TL0 = T0RL;             /* 重载T0 */
     KeyScan();                           /* 扫描按键 */
 
     cnt200ms++;  cnt1s++;
@@ -387,12 +388,12 @@ void main()
 
             zcCount = 0; zcBufCnt = 0;   /* 重置累加器 */
 
+            if (!showWave)
+                UpdateDisplay();
+            else if (mode == 1)
+                DrawWaveform();              /* 每秒刷新波形 */
             if (measuredFreq != lastFreq)
-            {
                 lastFreq = measuredFreq;
-                if (!showWave) UpdateDisplay();
-                else if (mode == 1) DrawWaveform();
-            }
         }
 
         /* ---- 200ms 刷新文字 ---- */
