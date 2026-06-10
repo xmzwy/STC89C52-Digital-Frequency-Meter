@@ -465,13 +465,39 @@ void KeyAction(unsigned char keycode)
         }
     }
     else if (keycode == 0x26 && mode == 0 && waveFreq <= 50)   /* ↑ +10Hz */
-        { waveFreq += 10; SetWaveFreq(waveFreq); return; }
+    {
+        waveFreq += 10; SetWaveFreq(waveFreq);
+        if (showWave) {                              /* 立即刷新频率文字 */
+            uint8 ns[12]; StrFill(strBuf,16);
+            StrCopyLit(strBuf,0,"F:"); NumberToString(ns,waveFreq);
+            StrCopy(strBuf,2,ns,4); LcdShowString(0,0,strBuf);
+        }
+        if (!showWave) UpdateDisplay(); return;
+    }
     else if (keycode == 0x28 && mode == 0 && waveFreq > 10)   /* ↓ -10Hz */
-        { waveFreq -= 10; SetWaveFreq(waveFreq); return; }
+    {
+        waveFreq -= 10; SetWaveFreq(waveFreq);
+        if (showWave) { uint8 ns[12]; StrFill(strBuf,16);
+            StrCopyLit(strBuf,0,"F:"); NumberToString(ns,waveFreq);
+            StrCopy(strBuf,2,ns,4); LcdShowString(0,0,strBuf); }
+        if (!showWave) UpdateDisplay(); return;
+    }
     else if (keycode == 0x25 && mode == 0 && waveFreq < 60)   /* ← +1Hz */
-        { waveFreq += 1;  SetWaveFreq(waveFreq); return; }
+    {
+        waveFreq += 1; SetWaveFreq(waveFreq);
+        if (showWave) { uint8 ns[12]; StrFill(strBuf,16);
+            StrCopyLit(strBuf,0,"F:"); NumberToString(ns,waveFreq);
+            StrCopy(strBuf,2,ns,4); LcdShowString(0,0,strBuf); }
+        if (!showWave) UpdateDisplay(); return;
+    }
     else if (keycode == 0x27 && mode == 0 && waveFreq > 1)    /* → -1Hz */
-        { waveFreq -= 1;  SetWaveFreq(waveFreq); return; }
+    {
+        waveFreq -= 1; SetWaveFreq(waveFreq);
+        if (showWave) { uint8 ns[12]; StrFill(strBuf,16);
+            StrCopyLit(strBuf,0,"F:"); NumberToString(ns,waveFreq);
+            StrCopy(strBuf,2,ns,4); LcdShowString(0,0,strBuf); }
+        if (!showWave) UpdateDisplay(); return;
+    }
 
     /* 只有 0/Enter/ESC 才触发全屏重绘 */
     if (showWave) DrawWaveform();
@@ -553,16 +579,31 @@ void DrawWaveform()
     uint16 adcRange;
 
     /*
-     * 内部模式: 没有ADC数据, 合成一个干净的方波
-     * 32点/周期 × 2周期 = 64点 (16高+16低+16高+16低)
+     * 内部模式: 根据频率合成方波, 频率越高周期越多
+     * 64个采样模拟96ms窗口: 半周期采样数 = 333/频率
      */
     if (mode == 0)
     {
-        for (i = 0; i < 16; i++) adcBuf[i]      = 255;  /* 高电平 */
-        for (i = 16; i < 32; i++) adcBuf[i]      = 0;    /* 低电平 */
-        for (i = 32; i < 48; i++) adcBuf[i]      = 255;  /* 高电平 */
-        for (i = 48; i < 64; i++) adcBuf[i]      = 0;    /* 低电平 */
-        sigMin = 0; sigMax = 255;                        /* 满幅 */
+        uint8 half;   /* 半周期占几个采样点 */
+        uint8 pos = 0;
+        uint8 level = 255;
+
+        if (waveFreq > 0)
+            half = 333 / waveFreq;     /* 667采样率/频率/2 */
+        else
+            half = 32;
+
+        if (half < 2) half = 2;        /* 至少2个采样点 */
+        if (half > 32) half = 32;      /* 最多半个buffer */
+
+        while (pos < 64)
+        {
+            uint8 n;
+            for (n = 0; n < half && pos < 64; n++)
+                adcBuf[pos++] = level;
+            level = (level == 255) ? 0 : 255;  /* 翻转电平 */
+        }
+        sigMin = 0; sigMax = 255;
     }
 
     /*
