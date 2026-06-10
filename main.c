@@ -170,7 +170,7 @@ void SetWaveFreq(uint8 freq)
     unsigned long tmp;
 
     if (freq < 1)  freq = 1;
-    if (freq > 50) freq = 50;            /* I2C速度限制 */
+    if (freq > 30) freq = 30;            /* I2C速度限制, 保证按键响应 */
     waveFreq = freq;
 
     /* 计算T2重载值: 11059200/12 / (freq*32) */
@@ -466,32 +466,16 @@ void KeyAction(unsigned char keycode)
             else        TR2 = 0;
         }
     }
-    else if (keycode == 0x26)            /* ↑: 频率+10Hz */
-    {
-        if (mode == 0 && waveFreq <= 40)
-            { waveFreq += 10; SetWaveFreq(waveFreq); }
-        return;                          /* 只改频率, 不重绘 */
-    }
-    else if (keycode == 0x28)            /* ↓: 频率-10Hz */
-    {
-        if (mode == 0 && waveFreq > 10)
-            { waveFreq -= 10; SetWaveFreq(waveFreq); }
-        return;
-    }
-    else if (keycode == 0x25)            /* ←: 频率+1Hz */
-    {
-        if (mode == 0 && waveFreq < 50)
-            { waveFreq += 1; SetWaveFreq(waveFreq); }
-        return;
-    }
-    else if (keycode == 0x27)            /* →: 频率-1Hz */
-    {
-        if (mode == 0 && waveFreq > 1)
-            { waveFreq -= 1; SetWaveFreq(waveFreq); }
-        return;
-    }
+    else if (keycode == 0x26 && mode == 0 && waveFreq <= 20)   /* ↑ +10Hz */
+        { waveFreq += 10; SetWaveFreq(waveFreq); }
+    else if (keycode == 0x28 && mode == 0 && waveFreq > 10)   /* ↓ -10Hz */
+        { waveFreq -= 10; SetWaveFreq(waveFreq); }
+    else if (keycode == 0x25 && mode == 0 && waveFreq < 30)   /* ← +1Hz */
+        { waveFreq += 1;  SetWaveFreq(waveFreq); }
+    else if (keycode == 0x27 && mode == 0 && waveFreq > 1)    /* → -1Hz */
+        { waveFreq -= 1;  SetWaveFreq(waveFreq); }
 
-    if (showWave) DrawWaveform();        /* 仅 0/Enter/ESC 触发重绘 */
+    if (showWave) DrawWaveform();
     else          UpdateDisplay();
 }
 
