@@ -324,7 +324,12 @@ void main()
                 if (curr > sigMax) sigMax = curr;
             }
             sigAvg = (uint8)(sum / 64);
-            sigThr = sigAvg;             /* 过零检测用平均值做阈值 */
+            /* 平滑阈值: 8个buffer指数平均, 防单buffer偏差 */
+            {
+                static uint16 thrS = 127 * 8;
+                thrS = (thrS * 7 + (uint16)sigAvg * 8) / 8;
+                sigThr = (uint8)(thrS / 8);
+            }
             if (sigMax <= sigMin) sigMax = sigMin + 1;
 
             /* 外部模式: 统计过零次数 (用于测频率) */
