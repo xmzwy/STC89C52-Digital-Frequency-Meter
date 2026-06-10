@@ -332,7 +332,7 @@ void main()
             {
                 uint8 edges = 0;
                 bit   armed = 0;         /* 迟滞: 必须低于阈值才武装 */
-                uint8 lo = sigThr - 4;   /* 下阈值(迟滞带) */
+                uint8 lo = (sigThr > 8) ? (sigThr - 8) : 0; /* 迟滞下阈值 */
                 prev = adcBuf[0];
                 for (i = 1; i < 64; i++)
                 {
