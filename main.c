@@ -170,52 +170,52 @@ void SetWaveFreq(uint8 freq)
     unsigned long tmp;
 
     if (freq < 1)  freq = 1;
-    if (freq > 30) freq = 30;            /* I2C速度限制, 保证按键响应 */
+    if (freq > 200) freq = 200;          /* 参考代码无频率上限 */
     waveFreq = freq;
 
-    /* 计算T2重载值: 11059200/12 / (freq*32) */
+    /* 用T1生成方波: 11059200/12 / (freq*32点) */
     tmp = (11059200UL / 12) / ((unsigned long)freq * 32);
     tmp = 65536 - tmp + 36;
+    T1RH = (unsigned char)(tmp >> 8);
+    T1RL = (unsigned char)tmp;
 
-    T2MOD = 0x00;
-    T2CON = 0x00;
-    RCAP2H = (unsigned char)(tmp >> 8);
-    RCAP2L = (unsigned char)tmp;
-    TH2 = RCAP2H;
-    TL2 = RCAP2L;
-    ET2 = 1;
-    PT2 = 1;
-    if (waveOn) TR2 = 1;
+    TMOD &= 0x0F;
+    TMOD |= 0x10;                        /* T1模式1(16位) */
+    TH1 = T1RH; TL1 = T1RL;
+    ET1 = 1;
+    PT1 = 0;                             /* 低优先级, 不阻塞按键 */
+    if (waveOn) TR1 = 1; else TR1 = 0;
 }
 
 /* ==================== 定时器初始化 ==================== */
+/*
+ * T0: 按键扫描 1ms (参考课堂代码架构)
+ * T1: 内部方波生成 (仅内部模式, 外部模式时闲置)
+ * T2: ADC采样 1.5ms (仅外部模式, 内部模式时闲置)
+ */
 
-void ConfigTimer0()                      /* T0: 外部计数器 */
-{
-    TMOD &= 0xF0;
-    TMOD |= 0x05;
-    TH0 = 0; TL0 = 0;
-    ET0 = 1; TR0 = 1;
-}
-
-void ConfigTimer1(uint8 ms)              /* T1: 系统时钟 */
+void ConfigTimer0(void)                  /* T0: 1ms按键扫描 */
 {
     unsigned long tmp;
     tmp = 11059200UL / 12;
-    tmp = (tmp * ms) / 1000;
+    tmp = tmp / 1000;                    /* 1ms */
     tmp = 65536 - tmp + 28;
-    T1RH = (unsigned char)(tmp >> 8);
+    T1RH = (unsigned char)(tmp >> 8);    /* 借用T1RH/T1RL存T0重载值 */
     T1RL = (unsigned char)tmp;
-    TMOD &= 0x0F;
-    TMOD |= 0x10;
-    TH1 = T1RH; TL1 = T1RL;
-    ET1 = 1; TR1 = 1;
+    TMOD &= 0xF0;
+    TMOD |= 0x01;                        /* T0模式1(16位) */
+    TH0 = T1RH; TL0 = T1RL;
+    ET0 = 1;
+    PT0 = 1;                             /* 最高优先级, 保证按键响应 */
+    TR0 = 1;
+}
+
+void ConfigTimer1(uint8 ms)              /* 预留, 未使用 */
+{
 }
 
 /*
  * T2: ADC采样定时器, 固定1.5ms周期 (667Hz)
- * 重载值 = 65536 - 1382 = 64154
- * 奈奎斯特极限 ~333Hz, 推荐测试频率 50~200Hz
  */
 void ConfigTimer2()
 {
@@ -226,46 +226,45 @@ void ConfigTimer2()
     TH2 = RCAP2H;
     TL2 = RCAP2L;
     ET2 = 1;
-    PT2 = 1;
+    PT2 = 0;                             /* 低优先级, 不阻塞按键 */
 }
 
 /* ==================== 中断服务程序 ==================== */
 
-void ISR_Timer0() interrupt 1            /* T0中断: 外部脉冲计数 */
+void ISR_Timer0() interrupt 1            /* T0: 1ms按键扫描 + 系统时钟 */
 {
-}
+    static uint16 cnt200ms = 0;
+    static uint16 cnt1s    = 0;
 
-void ISR_Timer1() interrupt 3            /* T1中断: 10ms系统时钟 */
-{
-    static uint8 cnt200ms = 0;
-    static uint8 cnt1s    = 0;
-
-    TH1 = T1RH; TL1 = T1RL;             /* 重载初值 */
+    TH0 = T1RH; TL0 = T1RL;             /* 重载T0 (借用T1RH/T1RL) */
     KeyScan();                           /* 扫描按键 */
 
     cnt200ms++;  cnt1s++;
-    if (cnt200ms >= 20) { cnt200ms = 0; flag200ms  = 1; }
-    if (cnt1s    >= 100) { cnt1s    = 0; flagMeasure = 1; }
+    if (cnt200ms >= 200) { cnt200ms = 0; flag200ms  = 1; }
+    if (cnt1s    >= 1000) { cnt1s    = 0; flagMeasure = 1; }
 }
 
-/*
- * T2中断: 667Hz触发
- *   内部模式: 输出DAC方波
- *   外部模式: 读取ADC采样 → 填满64点缓冲区
- */
-void ISR_Timer2() interrupt 5
+void ISR_Timer1() interrupt 3            /* T1: 内部方波生成 */
 {
     static unsigned char dacIdx = 0;
 
-    TF2 = 0;                             /* 清除中断标志 */
-
-    if (mode == 0)                       /* 内部方波模式 */
+    if (mode == 0 && waveOn)
     {
-        SetDACOut(SquareWave[dacIdx]);   /* 输出DAC电平 */
+        SetDACOut(SquareWave[dacIdx]);
         dacIdx++;
         if (dacIdx >= 32) dacIdx = 0;
     }
-    else                                 /* 外部信号模式 */
+    /* 外部模式: T1闲置, 由T2负责ADC采样 */
+}
+
+/*
+ * T2中断: 外部模式ADC采样, 667Hz触发
+ */
+void ISR_Timer2() interrupt 5
+{
+    TF2 = 0;
+
+    if (mode == 1)                       /* 仅外部模式有效 */
     {
         if (adcIdx < 64)
         {
@@ -273,8 +272,8 @@ void ISR_Timer2() interrupt 5
             adcIdx++;
             if (adcIdx >= 64)
             {
-                adcReady = 1;            /* 通知主循环处理 */
-                TR2 = 0;                 /* 暂停采样 */
+                adcReady = 1;
+                TR2 = 0;
             }
         }
     }
@@ -287,11 +286,10 @@ void main()
 
     EA = 1;                              /* 开全局中断 */
 
-    ConfigTimer0();
-    ConfigTimer1(10);                    /* 10ms定时 */
-    ConfigTimer2();
+    ConfigTimer0();                      /* T0: 1ms按键扫描 */
+    ConfigTimer2();                      /* T2: ADC采样(备用) */
     InitLcd12864();                      /* 液晶初始化 */
-    SetWaveFreq(waveFreq);               /* 默认10Hz方波 */
+    SetWaveFreq(waveFreq);               /* T1: 默认10Hz方波 */
 
     measuredFreq   = waveFreq;
     measuredPeriod = 1000000UL / waveFreq;
@@ -437,24 +435,24 @@ void KeyAction(unsigned char keycode)
         if (mode == 0)                   /* 内部 → 外部 */
         {
             mode = 1; waveOn = 0;
-            TR2 = 0;
-            /* 关DAC, 设为ADC采样模式 */
+            TR1 = 0;                     /* 停T1(方波) */
+            /* 关DAC, 预热ADC */
             I2CStart();
             I2CWrite(0x48 << 1);
-            I2CWrite(0x00);              /* DAC关 */
+            I2CWrite(0x00);
             I2CStop();
             ConfigTimer2();
-            ReadADC(1);                  /* 预热PCF8591流水线 */
+            ReadADC(1);
             adcIdx = 0; adcReady = 0;
             measuredFreq = 0;
             zcCount = 0; zcBufCnt = 0;
-            TR2 = 1;
+            TR2 = 1;                     /* 启T2(ADC采样) */
         }
         else                             /* 外部 → 内部 */
         {
             mode = 0; waveOn = 1;
-            TR2 = 0;
-            SetWaveFreq(waveFreq);
+            TR2 = 0;                     /* 停T2 */
+            SetWaveFreq(waveFreq);       /* 启T1(方波) */
         }
     }
     else if (keycode == 0x1B)            /* ESC: 启停内部方波 */
@@ -463,14 +461,14 @@ void KeyAction(unsigned char keycode)
         {
             waveOn = !waveOn;
             if (waveOn) SetWaveFreq(waveFreq);
-            else        TR2 = 0;
+            else        TR1 = 0;         /* 停T1 */
         }
     }
-    else if (keycode == 0x26 && mode == 0 && waveFreq <= 20)   /* ↑ +10Hz */
+    else if (keycode == 0x26 && mode == 0 && waveFreq <= 190)  /* ↑ +10Hz */
         { waveFreq += 10; SetWaveFreq(waveFreq); }
     else if (keycode == 0x28 && mode == 0 && waveFreq > 10)   /* ↓ -10Hz */
         { waveFreq -= 10; SetWaveFreq(waveFreq); }
-    else if (keycode == 0x25 && mode == 0 && waveFreq < 30)   /* ← +1Hz */
+    else if (keycode == 0x25 && mode == 0 && waveFreq < 200)  /* ← +1Hz */
         { waveFreq += 1;  SetWaveFreq(waveFreq); }
     else if (keycode == 0x27 && mode == 0 && waveFreq > 1)    /* → -1Hz */
         { waveFreq -= 1;  SetWaveFreq(waveFreq); }
