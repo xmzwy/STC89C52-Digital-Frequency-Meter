@@ -170,7 +170,7 @@ void SetWaveFreq(uint8 freq)
     unsigned long tmp;
 
     if (freq < 1)  freq = 1;
-    if (freq > 200) freq = 200;          /* 参考代码无频率上限 */
+    if (freq > 60) freq = 60;            /* I2C约400us, 60Hz时ISR占75%CPU */
     waveFreq = freq;
 
     /* 用T1生成方波: 11059200/12 / (freq*32点) */
@@ -464,15 +464,16 @@ void KeyAction(unsigned char keycode)
             else        TR1 = 0;         /* 停T1 */
         }
     }
-    else if (keycode == 0x26 && mode == 0 && waveFreq <= 190)  /* ↑ +10Hz */
-        { waveFreq += 10; SetWaveFreq(waveFreq); }
+    else if (keycode == 0x26 && mode == 0 && waveFreq <= 50)   /* ↑ +10Hz */
+        { waveFreq += 10; SetWaveFreq(waveFreq); return; }
     else if (keycode == 0x28 && mode == 0 && waveFreq > 10)   /* ↓ -10Hz */
-        { waveFreq -= 10; SetWaveFreq(waveFreq); }
-    else if (keycode == 0x25 && mode == 0 && waveFreq < 200)  /* ← +1Hz */
-        { waveFreq += 1;  SetWaveFreq(waveFreq); }
+        { waveFreq -= 10; SetWaveFreq(waveFreq); return; }
+    else if (keycode == 0x25 && mode == 0 && waveFreq < 60)   /* ← +1Hz */
+        { waveFreq += 1;  SetWaveFreq(waveFreq); return; }
     else if (keycode == 0x27 && mode == 0 && waveFreq > 1)    /* → -1Hz */
-        { waveFreq -= 1;  SetWaveFreq(waveFreq); }
+        { waveFreq -= 1;  SetWaveFreq(waveFreq); return; }
 
+    /* 只有 0/Enter/ESC 才触发全屏重绘 */
     if (showWave) DrawWaveform();
     else          UpdateDisplay();
 }
