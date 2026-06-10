@@ -394,11 +394,22 @@ void main()
             }
         }
 
-        /* ---- 200ms 刷新文字界面 ---- */
+        /* ---- 200ms 刷新文字 ---- */
         if (flag200ms)
         {
+            uint8 numStr[12];
             flag200ms = 0;
-            if (!showWave) UpdateDisplay();
+            if (!showWave)
+                UpdateDisplay();
+            else
+            {
+                /* 波形模式下只刷新顶部频率文字(快) */
+                StrFill(strBuf, 16);
+                StrCopyLit(strBuf, 0, "F:");
+                NumberToString(numStr, measuredFreq);
+                StrCopy(strBuf, 2, numStr, 4);
+                LcdShowString(0, 0, strBuf);
+            }
         }
     }
 }
@@ -459,24 +470,28 @@ void KeyAction(unsigned char keycode)
     {
         if (mode == 0 && waveFreq <= 40)
             { waveFreq += 10; SetWaveFreq(waveFreq); }
+        return;                          /* 只改频率, 不重绘 */
     }
     else if (keycode == 0x28)            /* ↓: 频率-10Hz */
     {
         if (mode == 0 && waveFreq > 10)
             { waveFreq -= 10; SetWaveFreq(waveFreq); }
+        return;
     }
     else if (keycode == 0x25)            /* ←: 频率+1Hz */
     {
         if (mode == 0 && waveFreq < 50)
             { waveFreq += 1; SetWaveFreq(waveFreq); }
+        return;
     }
     else if (keycode == 0x27)            /* →: 频率-1Hz */
     {
         if (mode == 0 && waveFreq > 1)
             { waveFreq -= 1; SetWaveFreq(waveFreq); }
+        return;
     }
 
-    if (showWave) DrawWaveform();
+    if (showWave) DrawWaveform();        /* 仅 0/Enter/ESC 触发重绘 */
     else          UpdateDisplay();
 }
 
