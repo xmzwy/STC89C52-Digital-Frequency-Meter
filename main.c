@@ -555,6 +555,19 @@ void DrawWaveform()
     uint16 adcRange;
 
     /*
+     * 内部模式: 没有ADC数据, 合成一个干净的方波
+     * 32点/周期 × 2周期 = 64点 (16高+16低+16高+16低)
+     */
+    if (mode == 0)
+    {
+        for (i = 0; i < 16; i++) adcBuf[i]      = 255;  /* 高电平 */
+        for (i = 16; i < 32; i++) adcBuf[i]      = 0;    /* 低电平 */
+        for (i = 32; i < 48; i++) adcBuf[i]      = 255;  /* 高电平 */
+        for (i = 48; i < 64; i++) adcBuf[i]      = 0;    /* 低电平 */
+        sigMin = 0; sigMax = 255;                        /* 满幅 */
+    }
+
+    /*
      * 第1步: 自动缩放
      * sigMin→屏幕底部(y=63), sigMax→屏幕顶部(y=16)
      * 加6%留白, 波形不贴边
