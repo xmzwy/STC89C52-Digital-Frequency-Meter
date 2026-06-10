@@ -248,13 +248,13 @@ void ISR_Timer1() interrupt 3            /* T1: 内部方波生成 */
 {
     static unsigned char dacIdx = 0;
 
+    TH1 = T1RH; TL1 = T1RL;             /* 重载初值(模式1必须手动重载!) */
     if (mode == 0 && waveOn)
     {
         SetDACOut(SquareWave[dacIdx]);
         dacIdx++;
         if (dacIdx >= 32) dacIdx = 0;
     }
-    /* 外部模式: T1闲置, 由T2负责ADC采样 */
 }
 
 /*
@@ -423,24 +423,30 @@ void KeyAction(unsigned char keycode)
     {
         if (mode == 0)                   /* 内部 → 外部 */
         {
+            uint8 t;
             mode = 1; waveOn = 0;
-            TR1 = 0;                     /* 停T1(方波) */
-            /* 关DAC, 预热ADC */
-            I2CStart();
-            I2CWrite(0x48 << 1);
-            I2CWrite(0x00);
-            I2CStop();
+            TR1 = 0; TR2 = 0;            /* 停所有定时器 */
+            /* 关DAC, 多次写入确保生效 */
+            for (t = 0; t < 3; t++)
+            {
+                I2CStart();
+                I2CWrite(0x48 << 1);
+                I2CWrite(0x00);          /* DAC关 */
+                I2CStop();
+            }
             ConfigTimer2();
-            ReadADC(1);
+            /* 多次预热PCF8591流水线 */
+            for (t = 0; t < 5; t++)
+                ReadADC(1);
             adcIdx = 0; adcReady = 0;
-            measuredFreq = 0;
+            measuredFreq = 0; measuredPeriod = 0;
             zcCount = 0; zcBufCnt = 0;
             TR2 = 1;                     /* 启T2(ADC采样) */
         }
         else                             /* 外部 → 内部 */
         {
             mode = 0; waveOn = 1;
-            TR2 = 0;                     /* 停T2 */
+            TR2 = 0; TR1 = 0;            /* 停所有定时器 */
             SetWaveFreq(waveFreq);       /* 启T1(方波) */
         }
     }
