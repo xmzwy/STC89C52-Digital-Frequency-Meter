@@ -194,11 +194,11 @@ void SetWaveFreq(uint8 freq)
  * T2: ADC采样 1.5ms (仅外部模式, 内部模式时闲置)
  */
 
-void ConfigTimer0(void)                  /* T0: 1ms按键扫描 */
+void ConfigTimer0(void)                  /* T0: 10ms按键扫描 */
 {
     unsigned long tmp;
     tmp = 11059200UL / 12;
-    tmp = tmp / 1000;                    /* 1ms */
+    tmp = (tmp * 10) / 1000;             /* 10ms */
     tmp = 65536 - tmp + 28;
     T1RH = (unsigned char)(tmp >> 8);    /* 借用T1RH/T1RL存T0重载值 */
     T1RL = (unsigned char)tmp;
@@ -206,7 +206,7 @@ void ConfigTimer0(void)                  /* T0: 1ms按键扫描 */
     TMOD |= 0x01;                        /* T0模式1(16位) */
     TH0 = T1RH; TL0 = T1RL;
     ET0 = 1;
-    PT0 = 1;                             /* 最高优先级, 保证按键响应 */
+    PT0 = 0;                             /* 低优先级, 不打断T2 ADC采样 */
     TR0 = 1;
 }
 
@@ -233,15 +233,15 @@ void ConfigTimer2()
 
 void ISR_Timer0() interrupt 1            /* T0: 1ms按键扫描 + 系统时钟 */
 {
-    static uint16 cnt200ms = 0;
-    static uint16 cnt1s    = 0;
+    static uint8 cnt200ms = 0;
+    static uint8 cnt1s    = 0;
 
     TH0 = T1RH; TL0 = T1RL;             /* 重载T0 (借用T1RH/T1RL) */
     KeyScan();                           /* 扫描按键 */
 
     cnt200ms++;  cnt1s++;
-    if (cnt200ms >= 200) { cnt200ms = 0; flag200ms  = 1; }
-    if (cnt1s    >= 1000) { cnt1s    = 0; flagMeasure = 1; }
+    if (cnt200ms >= 20)  { cnt200ms = 0; flag200ms  = 1; }
+    if (cnt1s    >= 100) { cnt1s    = 0; flagMeasure = 1; }
 }
 
 void ISR_Timer1() interrupt 3            /* T1: 内部方波生成 */
