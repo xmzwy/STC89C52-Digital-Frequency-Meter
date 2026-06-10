@@ -454,13 +454,17 @@ void KeyAction(unsigned char keycode)
         }
     }
     else if (keycode == 0x26 && mode == 0 && waveFreq <= 50)   /* ↑ +10Hz */
-        { waveFreq += 10; SetWaveFreq(waveFreq); }
+        { waveFreq += 10; SetWaveFreq(waveFreq);
+          measuredFreq = waveFreq; measuredPeriod = 1000000UL/waveFreq; }
     else if (keycode == 0x28 && mode == 0 && waveFreq > 10)   /* ↓ -10Hz */
-        { waveFreq -= 10; SetWaveFreq(waveFreq); }
+        { waveFreq -= 10; SetWaveFreq(waveFreq);
+          measuredFreq = waveFreq; measuredPeriod = 1000000UL/waveFreq; }
     else if (keycode == 0x25 && mode == 0 && waveFreq < 60)   /* ← +1Hz */
-        { waveFreq += 1;  SetWaveFreq(waveFreq); }
+        { waveFreq += 1;  SetWaveFreq(waveFreq);
+          measuredFreq = waveFreq; measuredPeriod = 1000000UL/waveFreq; }
     else if (keycode == 0x27 && mode == 0 && waveFreq > 1)    /* → -1Hz */
-        { waveFreq -= 1;  SetWaveFreq(waveFreq); }
+        { waveFreq -= 1;  SetWaveFreq(waveFreq);
+          measuredFreq = waveFreq; measuredPeriod = 1000000UL/waveFreq; }
 
     if (showWave) DrawWaveform();        /* 全屏重绘,波形随频率变化 */
     else          UpdateDisplay();
