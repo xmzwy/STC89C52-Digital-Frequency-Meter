@@ -45,9 +45,9 @@ bit waveOn      = 1;               /* 内部方波开关 */
 bit showWave    = 0;               /* 0=文字界面, 1=波形界面 */
 
 unsigned char idata mode     = 0;  /* 0=内部方波, 1=外部信号 */
-unsigned char idata waveFreq = 10; /* 内部方波频率 (1~50Hz) */
-unsigned long xdata measuredFreq;  /* 测得的频率 */
-unsigned long xdata measuredPeriod;/* 测得的周期(us) */
+volatile unsigned char idata waveFreq = 10; /* 内部方波频率 (1~60Hz) */
+volatile unsigned long xdata measuredFreq;  /* 测得的频率 */
+volatile unsigned long xdata measuredPeriod;/* 测得的周期(us) */
 unsigned int  xdata zcCount;       /* 1秒内过零累计 */
 unsigned char idata zcBufCnt;      /* 1秒内缓冲区个数 */
 
