@@ -234,14 +234,14 @@ void ConfigTimer2()
 void ISR_Timer0() interrupt 1            /* T0: 1ms按键扫描 + 系统时钟 */
 {
     static uint8 cnt200ms = 0;
-    static uint8 cnt1s    = 0;
+    static uint8 cnt2s    = 0;
 
     TH0 = T1RH; TL0 = T1RL;             /* 重载T0 (借用T1RH/T1RL) */
     KeyScan();                           /* 扫描按键 */
 
-    cnt200ms++;  cnt1s++;
+    cnt200ms++;  cnt2s++;
     if (cnt200ms >= 20)  { cnt200ms = 0; flag200ms  = 1; }
-    if (cnt1s    >= 100) { cnt1s    = 0; flagMeasure = 1; }
+    if (cnt2s    >= 200) { cnt2s    = 0; flagMeasure = 1; }  /* 2秒测量 */
 }
 
 void ISR_Timer1() interrupt 3            /* T1: 内部方波生成 */
