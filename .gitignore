@@ -1,0 +1,10 @@
+*.OBJ
+*.LST
+*.M51
+*.plg
+*.hex
+*.lnp
+*.uvopt
+*.uvproj
+*.bak
+STARTUP.A51
