@@ -724,19 +724,25 @@ void DrawWaveform()
     uint8 ya, yb, yt;
     uint16 adcRange;
 
-    /* Simple per-buffer auto-scaling */
-    adcRange = (uint16)sigMax - (uint16)sigMin;
-    if (adcRange < 2) adcRange = 2;
-
-    for (i = 0; i < 64; i++)
+    /* Auto-scaling with small 6% padding so waveform doesn't hug edges */
     {
-        uint8 adc = adcBuf[i];
-        if (adc <= sigMin)
-            yDisp[i * 2] = 63;
-        else if (adc >= sigMax)
-            yDisp[i * 2] = 16;
-        else
-            yDisp[i * 2] = 63 - (uint8)((uint16)(adc - sigMin) * 47 / adcRange);
+        uint8 dMin, dMax;
+        uint16 pad = ((uint16)sigMax - (uint16)sigMin) / 16;
+        dMin = (sigMin >= pad) ? (sigMin - pad) : 0;
+        dMax = sigMax + pad; if (dMax < sigMax || dMax > 253) dMax = 255;
+        adcRange = (uint16)dMax - (uint16)dMin;
+        if (adcRange < 2) adcRange = 2;
+
+        for (i = 0; i < 64; i++)
+        {
+            uint8 adc = adcBuf[i];
+            if (adc <= dMin)
+                yDisp[i * 2] = 63;
+            else if (adc >= dMax)
+                yDisp[i * 2] = 16;
+            else
+                yDisp[i * 2] = 63 - (uint8)((uint16)(adc - dMin) * 47 / adcRange);
+        }
     }
 
     /* Linear interpolation for odd columns.
